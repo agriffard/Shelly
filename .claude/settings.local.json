@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:cshells.io)",
+      "WebFetch(domain:www.nuget.org)",
+      "Bash(gh api:*)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(x[''''path'''']\\) for x in data.get\\(''''tree'''',[]\\) if x[''''path''''].startswith\\(''''src/''''\\) and x[''''path''''].endswith\\(''''.cs''''\\)]\")",
+      "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
+      "Bash(ls:*)",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet build:*)",
+      "Read(//c/Users/agrif/.nuget/packages/cshells.abstractions/0.0.12//**)",
+      "Read(//c/Users/agrif/.nuget/packages/cshells.abstractions/0.0.12/**)",
+      "Bash(dotnet script:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet ef:*)",
+      "Bash(taskkill //F //PID 29264)",
+      "Bash(taskkill //F //IM TenantHub.Web.exe)"
+    ]
+  }
+}

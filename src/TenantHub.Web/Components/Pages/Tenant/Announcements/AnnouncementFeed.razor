@@ -1,0 +1,32 @@
+@page "/{Slug}/announcements"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+
+<h1>Announcements</h1>
+
+@if (announcements is null) { <p>Loading...</p> }
+else if (announcements.Count == 0) { <p style="color: #6b7280;">No announcements.</p> }
+else
+{
+    @foreach (var a in announcements)
+    {
+        <div class="card @(a.IsPinned ? "alert-banner" : "")">
+            <div class="flex justify-between items-center">
+                <h3 style="margin: 0;">@a.Title</h3>
+                <span style="color: #6b7280; font-size: 0.75rem;">Expires @a.ExpiresAt.ToString("MMM dd")</span>
+            </div>
+            <p style="margin: 0.5rem 0 0;">@a.Body</p>
+            <p style="color: #6b7280; font-size: 0.75rem; margin: 0.25rem 0 0;">Published @a.PublishedAt.ToString("yyyy-MM-dd HH:mm")</p>
+        </div>
+    }
+}
+
+@code {
+    private IReadOnlyList<AnnouncementDto>? announcements;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var service = GetShellService<IAnnouncementService>();
+        if (service is not null) announcements = await service.GetAnnouncementsAsync();
+    }
+}

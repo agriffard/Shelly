@@ -1,0 +1,100 @@
+@page "/admin/tenants/{Id:guid}/features"
+@layout TenantHub.Web.Components.Layout.AdminLayout
+@inject ITenantManagementService TenantService
+@inject NavigationManager Navigation
+
+<div class="flex justify-between items-center mb-4">
+    <h1>Feature Management</h1>
+    <button class="btn btn-secondary" @onclick="NavigateBack">Back to Tenants</button>
+</div>
+
+@if (tenant is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <p style="margin-bottom: 1rem;">Managing features for <strong>@tenant.Name</strong> (<code>@tenant.Slug</code>)</p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+        @foreach (var feature in availableFeatures)
+        {
+            var tenantFeature = tenantFeatures?.FirstOrDefault(f => f.FeatureName == feature.Name);
+            var isEnabled = tenantFeature?.IsEnabled ?? false;
+            var isCore = feature.Name == "Core";
+            var depsNotMet = !isCore && feature.DependsOn.Any(dep =>
+                !(tenantFeatures?.Any(f => f.FeatureName == dep && f.IsEnabled) ?? false));
+
+            <div class="card">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 style="margin: 0;">@feature.DisplayName</h3>
+                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0.25rem 0;">@feature.Description</p>
+                        @if (feature.DependsOn.Length > 0)
+                        {
+                            <div style="margin-top: 0.5rem;">
+                                @foreach (var dep in feature.DependsOn)
+                                {
+                                    <span class="badge badge-active" style="margin-right: 0.25rem;">Requires @dep</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked="@isEnabled" disabled="@(isCore || depsNotMet || isToggling)"
+                               @onchange="e => ToggleFeature(feature.Name, (bool)(e.Value ?? false))" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                @if (depsNotMet && !isCore)
+                {
+                    <p style="color: #dc2626; font-size: 0.75rem; margin-top: 0.5rem;">Dependencies not met</p>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private TenantDto? tenant;
+    private IReadOnlyList<TenantFeatureDto>? tenantFeatures;
+    private bool isToggling;
+
+    private static readonly FeatureInfo[] availableFeatures =
+    [
+        new("Core", "Core", "Core tenant services — always enabled", []),
+        new("Notes", "Notes", "Rich-text note taking", ["Core"]),
+        new("Tasks", "Tasks", "Lightweight task tracker", ["Core"]),
+        new("Announcements", "Announcements", "Broadcast messages to tenant users", ["Core"]),
+        new("Media", "File Vault", "Upload and share files within the tenant", ["Core"]),
+    ];
+
+    private void NavigateBack() => Navigation.NavigateTo("/admin/tenants");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        tenant = await TenantService.GetTenantByIdAsync(Id);
+        tenantFeatures = await TenantService.GetTenantFeaturesAsync(Id);
+    }
+
+    private async Task ToggleFeature(string featureName, bool enabled)
+    {
+        isToggling = true;
+        try
+        {
+            await TenantService.ToggleFeatureAsync(Id, featureName, enabled, "admin");
+            await LoadData();
+        }
+        finally
+        {
+            isToggling = false;
+        }
+    }
+}

@@ -1,0 +1,37 @@
+@page "/{Slug}/tasks/{Id:guid}"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+@inject NavigationManager Navigation
+
+@if (task is null) { <p>Loading...</p> }
+else
+{
+    <div class="flex justify-between items-center mb-4">
+        <h1>@task.Title</h1>
+        <button class="btn btn-secondary" @onclick="NavigateBack">Back</button>
+    </div>
+    <div class="card" style="max-width: 500px;">
+        <div class="form-group">
+            <label>Status</label>
+            <select @onchange="UpdateStatus">
+                @foreach (var s in Enum.GetValues<TaskItemStatus>())
+                { <option value="@s" selected="@(task.Status == s)">@s</option> }
+            </select>
+        </div>
+        <p><strong>Assigned To:</strong> @task.AssignedTo</p>
+        <p><strong>Due Date:</strong> @task.DueDate.ToString("yyyy-MM-dd")</p>
+        <p><strong>Created:</strong> @task.CreatedAt.ToString("yyyy-MM-dd HH:mm")</p>
+        <div class="flex gap-2 mt-4"><button class="btn btn-danger" @onclick="Delete">Delete</button></div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private ITaskService? taskService;
+    private TaskItemDto? task;
+
+    protected override async Task OnInitializedAsync() { taskService = GetShellService<ITaskService>(); if (taskService is not null) task = await taskService.GetTaskByIdAsync(Id); }
+    private async Task UpdateStatus(ChangeEventArgs e) { if (taskService is null) return; if (Enum.TryParse<TaskItemStatus>(e.Value?.ToString(), out var status)) { await taskService.UpdateTaskAsync(Id, new UpdateTaskRequest(Status: status)); task = await taskService.GetTaskByIdAsync(Id); } }
+    private async Task Delete() { if (taskService is not null) await taskService.DeleteTaskAsync(Id); Navigation.NavigateTo($"/{Slug}/tasks"); }
+    private void NavigateBack() => Navigation.NavigateTo($"/{Slug}/tasks");
+}

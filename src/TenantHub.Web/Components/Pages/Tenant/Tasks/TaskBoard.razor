@@ -1,0 +1,66 @@
+@page "/{Slug}/tasks"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+@inject NavigationManager Navigation
+
+<div class="flex justify-between items-center mb-4">
+    <h1>Tasks</h1>
+    <button class="btn btn-primary" @onclick="() => showCreate = true">New Task</button>
+</div>
+
+<div class="flex gap-2 mb-4">
+    <input type="text" placeholder="Filter by assignee..." @bind="assigneeFilter" style="width: 200px;" />
+    <button class="btn btn-secondary" @onclick="ApplyFilter">Filter</button>
+</div>
+
+@if (showCreate)
+{
+    <div class="card mb-4" style="max-width: 500px;">
+        <h3>Create Task</h3>
+        <div class="form-group"><label>Title</label><input type="text" @bind="newTitle" /></div>
+        <div class="form-group"><label>Assigned To</label><input type="text" @bind="newAssignee" /></div>
+        <div class="form-group"><label>Due Date</label><input type="date" @bind="newDueDate" /></div>
+        <div class="flex gap-2">
+            <button class="btn btn-primary" @onclick="CreateTask">Create</button>
+            <button class="btn btn-secondary" @onclick="() => showCreate = false">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (tasks is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+        @foreach (var (status, label) in columns)
+        {
+            <div>
+                <h3 style="text-align: center; padding: 0.5rem; background: #f1f5f9; border-radius: 4px;">@label</h3>
+                @foreach (var task in tasks.Where(t => t.Status == status))
+                {
+                    <div class="card" @onclick="() => NavigateToTask(task.Id)" style="cursor: pointer;">
+                        <strong>@task.Title</strong>
+                        <p style="color: #6b7280; font-size: 0.875rem; margin: 0.25rem 0;">@task.AssignedTo &middot; Due @task.DueDate.ToString("MMM dd")</p>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private ITaskService? taskService;
+    private IReadOnlyList<TaskItemDto>? tasks;
+    private bool showCreate;
+    private string newTitle = "", newAssignee = "", assigneeFilter = "";
+    private DateTime newDueDate = DateTime.Today.AddDays(7);
+    private static readonly (TaskItemStatus Status, string Label)[] columns = [(TaskItemStatus.ToDo, "To Do"), (TaskItemStatus.InProgress, "In Progress"), (TaskItemStatus.Done, "Done")];
+
+    protected override async Task OnInitializedAsync() { taskService = GetShellService<ITaskService>(); if (taskService is not null) await LoadTasks(); }
+    private async Task LoadTasks() { if (taskService is null) return; tasks = await taskService.GetTasksAsync(string.IsNullOrWhiteSpace(assigneeFilter) ? null : assigneeFilter); }
+    private async Task CreateTask() { if (taskService is null) return; await taskService.CreateTaskAsync(new CreateTaskRequest(newTitle, newAssignee, newDueDate)); newTitle = ""; newAssignee = ""; newDueDate = DateTime.Today.AddDays(7); showCreate = false; await LoadTasks(); }
+    private async Task ApplyFilter() => await LoadTasks();
+    private void NavigateToTask(Guid id) => Navigation.NavigateTo($"/{Slug}/tasks/{id}");
+}

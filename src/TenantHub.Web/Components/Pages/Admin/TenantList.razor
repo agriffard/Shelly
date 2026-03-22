@@ -1,0 +1,134 @@
+@page "/admin/tenants"
+@layout TenantHub.Web.Components.Layout.AdminLayout
+@inject ITenantManagementService TenantService
+@inject NavigationManager Navigation
+
+<h1>Tenants</h1>
+
+<div class="flex justify-between items-center mb-4">
+    <div>
+        <input type="text" placeholder="Search by name or slug..." @bind="searchTerm" @bind:event="oninput" @onkeyup="HandleSearch" style="width: 300px;" />
+    </div>
+    <button class="btn btn-primary" @onclick="NavigateToCreate">Create Tenant</button>
+</div>
+
+@if (tenants is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Status</th>
+                <th>Features</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var tenant in tenants.Items)
+            {
+                <tr>
+                    <td>@tenant.Name</td>
+                    <td><a href="/@tenant.Slug"><code>@tenant.Slug</code></a></td>
+                    <td>
+                        <span class="badge @GetStatusBadgeClass(tenant.Status)">@tenant.Status</span>
+                    </td>
+                    <td>@tenant.EnabledFeatureCount</td>
+                    <td>@tenant.CreatedAt.ToString("yyyy-MM-dd")</td>
+                    <td>
+                        <div class="flex gap-2">
+                            <button class="btn btn-secondary" @onclick="() => NavigateToEdit(tenant.Id)">Edit</button>
+                            <button class="btn btn-primary" @onclick="() => NavigateToFeatures(tenant.Id)">Features</button>
+                            @if (tenant.Status == TenantStatus.Active)
+                            {
+                                <button class="btn btn-danger" @onclick="() => SuspendTenant(tenant.Id)">Suspend</button>
+                            }
+                            else if (tenant.Status == TenantStatus.Suspended)
+                            {
+                                <button class="btn btn-success" @onclick="() => ActivateTenant(tenant.Id)">Activate</button>
+                            }
+                            <button class="btn btn-danger" @onclick="() => DeleteTenant(tenant.Id)">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (tenants.TotalPages > 1)
+    {
+        <div class="flex gap-2 mt-4 justify-between items-center">
+            <button class="btn btn-secondary" disabled="@(!tenants.HasPreviousPage)" @onclick="PreviousPage">Previous</button>
+            <span>Page @tenants.Page of @tenants.TotalPages (@tenants.TotalCount total)</span>
+            <button class="btn btn-secondary" disabled="@(!tenants.HasNextPage)" @onclick="NextPage">Next</button>
+        </div>
+    }
+}
+
+@code {
+    private PagedResult<TenantDto>? tenants;
+    private string searchTerm = "";
+    private int currentPage = 1;
+    private const int PageSize = 50;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTenants();
+    }
+
+    private async Task LoadTenants()
+    {
+        tenants = await TenantService.GetTenantsAsync(currentPage, PageSize, string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm);
+    }
+
+    private async Task HandleSearch()
+    {
+        currentPage = 1;
+        await LoadTenants();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (currentPage > 1) { currentPage--; await LoadTenants(); }
+    }
+
+    private async Task NextPage()
+    {
+        if (tenants?.HasNextPage == true) { currentPage++; await LoadTenants(); }
+    }
+
+    private async Task SuspendTenant(Guid id)
+    {
+        await TenantService.SetTenantStatusAsync(id, TenantStatus.Suspended, "admin");
+        await LoadTenants();
+    }
+
+    private async Task ActivateTenant(Guid id)
+    {
+        await TenantService.SetTenantStatusAsync(id, TenantStatus.Active, "admin");
+        await LoadTenants();
+    }
+
+    private async Task DeleteTenant(Guid id)
+    {
+        await TenantService.DeleteTenantAsync(id, "admin");
+        await LoadTenants();
+    }
+
+    private void NavigateToCreate() => Navigation.NavigateTo("/admin/tenants/new");
+    private void NavigateToEdit(Guid id) => Navigation.NavigateTo($"/admin/tenants/{id}/edit");
+    private void NavigateToFeatures(Guid id) => Navigation.NavigateTo($"/admin/tenants/{id}/features");
+
+    private static string GetStatusBadgeClass(TenantStatus status) => status switch
+    {
+        TenantStatus.Active => "badge-active",
+        TenantStatus.Suspended => "badge-suspended",
+        TenantStatus.Deleted => "badge-deleted",
+        _ => ""
+    };
+}

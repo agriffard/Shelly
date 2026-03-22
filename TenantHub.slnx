@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TenantHub.Core/TenantHub.Core.csproj" />
+    <Project Path="src/TenantHub.Data/TenantHub.Data.csproj" />
+    <Project Path="src/TenantHub.Features/TenantHub.Features.csproj" />
+    <Project Path="src/TenantHub.Web/TenantHub.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TenantHub.Tests/TenantHub.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,56 @@
+@page "/{Slug}/files"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+
+<h1>File Vault</h1>
+
+<div class="card mb-4">
+    <h3>Upload File</h3>
+    <p style="color: #6b7280; font-size: 0.875rem;">Maximum file size: 50 MB</p>
+    <InputFile OnChange="HandleFileUpload" />
+    @if (isUploading) { <p>Uploading...</p> }
+    @if (!string.IsNullOrEmpty(uploadError)) { <p style="color: #dc2626;">@uploadError</p> }
+</div>
+
+@if (files is null) { <p>Loading...</p> }
+else if (files.Count == 0) { <p style="color: #6b7280;">No files uploaded yet.</p> }
+else
+{
+    <table>
+        <thead><tr><th>Name</th><th>Size</th><th>Uploaded By</th><th>Date</th><th>Actions</th></tr></thead>
+        <tbody>
+            @foreach (var file in files)
+            {
+                <tr>
+                    <td>@file.FileName</td>
+                    <td>@FormatSize(file.SizeBytes)</td>
+                    <td>@file.UploadedBy</td>
+                    <td>@file.UploadedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td><button class="btn btn-danger" @onclick="() => DeleteFile(file.Id)">Delete</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IMediaService? mediaService;
+    private IReadOnlyList<FileRecordDto>? files;
+    private bool isUploading;
+    private string? uploadError;
+
+    protected override async Task OnInitializedAsync() { mediaService = GetShellService<IMediaService>(); if (mediaService is not null) await LoadFiles(); }
+    private async Task LoadFiles() { if (mediaService is null) return; files = await mediaService.GetFilesAsync(); }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        if (mediaService is null) return;
+        isUploading = true; uploadError = null;
+        try { var file = e.File; using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024); await mediaService.UploadFileAsync(stream, file.Name, file.ContentType, "user"); await LoadFiles(); }
+        catch (Exception ex) { uploadError = ex.Message; }
+        finally { isUploading = false; }
+    }
+
+    private async Task DeleteFile(Guid id) { if (mediaService is null) return; await mediaService.DeleteFileAsync(id); await LoadFiles(); }
+    private static string FormatSize(long bytes) => bytes switch { < 1024 => $"{bytes} B", < 1024 * 1024 => $"{bytes / 1024.0:F1} KB", _ => $"{bytes / (1024.0 * 1024):F1} MB" };
+}

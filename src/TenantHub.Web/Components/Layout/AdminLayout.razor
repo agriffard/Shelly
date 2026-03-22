@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+
+<div class="admin-layout">
+    <nav class="admin-sidebar">
+        <h2 style="color: white; margin-bottom: 2rem;">TenantHub</h2>
+        <NavLink href="/admin/tenants" Match="NavLinkMatch.Prefix">Tenants</NavLink>
+        <NavLink href="/admin/audit" Match="NavLinkMatch.All">Audit Log</NavLink>
+        <hr style="border-color: #475569; margin: 1rem 0;" />
+        <form method="post" action="/api/account/logout">
+            <button type="submit" class="btn btn-secondary" style="width: 100%;">Sign Out</button>
+        </form>
+    </nav>
+    <div class="admin-content">
+        @Body
+    </div>
+</div>

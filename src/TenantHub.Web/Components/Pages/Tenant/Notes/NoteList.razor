@@ -1,0 +1,76 @@
+@page "/{Slug}/notes"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+@inject NavigationManager Navigation
+
+<div class="flex justify-between items-center mb-4">
+    <h1>Notes</h1>
+    <button class="btn btn-primary" @onclick="NavigateToNew">New Note</button>
+</div>
+
+<div class="mb-4">
+    <input type="text" placeholder="Search by title..." @bind="searchTerm" @bind:event="oninput" @onkeyup="Search" style="width: 300px;" />
+</div>
+
+@if (!string.IsNullOrEmpty(debugInfo))
+{
+    <div style="background: #fef3c7; padding: 0.5rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.8rem;">
+        <strong>Debug:</strong> @debugInfo
+    </div>
+}
+
+@if (notes is null)
+{
+    <p>Loading...</p>
+}
+else if (notes.Count == 0)
+{
+    <p style="color: #6b7280;">No notes yet.</p>
+}
+else
+{
+    @foreach (var note in notes)
+    {
+        <div class="card" @onclick="() => NavigateToNote(note.Id)" style="cursor: pointer;">
+            <h3 style="margin: 0;">@note.Title</h3>
+            <p style="color: #6b7280; font-size: 0.875rem; margin: 0.25rem 0;">
+                @note.CreatedBy &middot; @note.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+                @if (note.UpdatedAt.HasValue)
+                {
+                    <span>(edited @note.UpdatedAt.Value.ToString("yyyy-MM-dd HH:mm"))</span>
+                }
+            </p>
+            <p style="margin: 0.5rem 0 0;">@(note.Body.Length > 200 ? note.Body[..200] + "..." : note.Body)</p>
+        </div>
+    }
+}
+
+@code {
+
+    private INoteService? noteService;
+    private IReadOnlyList<NoteDto>? notes;
+    private string searchTerm = "";
+    private string debugInfo = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        debugInfo = $"Slug='{Slug}', ShellServices={ShellServices is not null}";
+        noteService = GetShellService<INoteService>();
+        debugInfo += $", NoteService={noteService is not null}";
+        if (noteService is not null)
+        {
+            await LoadNotes();
+            debugInfo += $", Notes count={notes?.Count}";
+        }
+    }
+
+    private async Task LoadNotes()
+    {
+        if (noteService is null) return;
+        notes = await noteService.GetNotesAsync(string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm);
+    }
+
+    private async Task Search() => await LoadNotes();
+    private void NavigateToNew() => Navigation.NavigateTo($"/{Slug}/notes/new");
+    private void NavigateToNote(Guid id) => Navigation.NavigateTo($"/{Slug}/notes/{id}");
+}

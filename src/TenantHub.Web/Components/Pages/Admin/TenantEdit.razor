@@ -1,0 +1,107 @@
+@page "/admin/tenants/new"
+@page "/admin/tenants/{Id:guid}/edit"
+@layout TenantHub.Web.Components.Layout.AdminLayout
+@inject ITenantManagementService TenantService
+@inject NavigationManager Navigation
+
+<h1>@(Id.HasValue ? "Edit Tenant" : "Create Tenant")</h1>
+
+<div class="card" style="max-width: 600px;">
+    <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="tenant-edit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label>Name</label>
+            <InputText @bind-Value="model.Name" />
+        </div>
+
+        @if (!Id.HasValue)
+        {
+            <div class="form-group">
+                <label>Slug</label>
+                <InputText @bind-Value="model.Slug" />
+                <small style="color: #6b7280;">URL segment: lowercase, alphanumeric and hyphens only</small>
+            </div>
+        }
+        else
+        {
+            <div class="form-group">
+                <label>Slug</label>
+                <input type="text" value="@model.Slug" disabled />
+            </div>
+        }
+
+        <div class="form-group">
+            <label>Description</label>
+            <InputTextArea @bind-Value="model.Description" rows="3" />
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div style="color: #dc2626; margin-bottom: 1rem;">@errorMessage</div>
+        }
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">@(Id.HasValue ? "Save" : "Create")</button>
+            <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private TenantFormModel model = new();
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var tenant = await TenantService.GetTenantByIdAsync(Id.Value);
+            if (tenant is null)
+            {
+                Navigation.NavigateTo("/admin/tenants");
+                return;
+            }
+            model = new TenantFormModel
+            {
+                Name = tenant.Name,
+                Slug = tenant.Slug,
+                Description = tenant.Description ?? ""
+            };
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            if (Id.HasValue)
+            {
+                await TenantService.UpdateTenantAsync(Id.Value,
+                    new UpdateTenantRequest(model.Name, model.Description), "admin");
+            }
+            else
+            {
+                await TenantService.CreateTenantAsync(
+                    new CreateTenantRequest(model.Name, model.Slug, model.Description), "admin");
+            }
+            Navigation.NavigateTo("/admin/tenants");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void NavigateBack() => Navigation.NavigateTo("/admin/tenants");
+
+    private class TenantFormModel
+    {
+        public string Name { get; set; } = "";
+        public string Slug { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+}

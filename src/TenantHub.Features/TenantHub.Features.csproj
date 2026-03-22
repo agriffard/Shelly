@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TenantHub.Core\TenantHub.Core.csproj" />
+    <ProjectReference Include="..\TenantHub.Data\TenantHub.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CShells.Abstractions" Version="0.0.12" />
+    <PackageReference Include="CShells.AspNetCore.Abstractions" Version="0.0.12" />
+  </ItemGroup>
+
+</Project>

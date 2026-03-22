@@ -1,0 +1,86 @@
+@page "/admin/audit"
+@layout TenantHub.Web.Components.Layout.AdminLayout
+@inject IAuditService AuditService
+
+<h1>Audit Log</h1>
+
+<div class="flex gap-2 mb-4">
+    <input type="text" placeholder="Filter by actor..." @bind="actorFilter" style="width: 200px;" />
+    <input type="text" placeholder="Filter by action..." @bind="actionFilter" style="width: 200px;" />
+    <input type="date" @bind="dateFrom" />
+    <input type="date" @bind="dateTo" />
+    <button class="btn btn-primary" @onclick="ApplyFilters">Filter</button>
+    <button class="btn btn-secondary" @onclick="ClearFilters">Clear</button>
+</div>
+
+@if (logs is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Entity Type</th>
+                <th>Entity</th>
+                <th>Detail</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var log in logs.Items)
+            {
+                <tr>
+                    <td>@log.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td>@log.Actor</td>
+                    <td>@log.Action</td>
+                    <td>@log.EntityType</td>
+                    <td><code>@log.EntityId</code></td>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">@log.Detail</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (logs.TotalPages > 1)
+    {
+        <div class="flex gap-2 mt-4 justify-between items-center">
+            <button class="btn btn-secondary" disabled="@(!logs.HasPreviousPage)" @onclick="PreviousPage">Previous</button>
+            <span>Page @logs.Page of @logs.TotalPages (@logs.TotalCount total)</span>
+            <button class="btn btn-secondary" disabled="@(!logs.HasNextPage)" @onclick="NextPage">Next</button>
+        </div>
+    }
+}
+
+@code {
+    private PagedResult<AuditLogDto>? logs;
+    private string actorFilter = "";
+    private string actionFilter = "";
+    private DateTime? dateFrom;
+    private DateTime? dateTo;
+    private int currentPage = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLogs();
+    }
+
+    private async Task LoadLogs()
+    {
+        var query = new AuditLogQuery(
+            Page: currentPage,
+            Actor: string.IsNullOrWhiteSpace(actorFilter) ? null : actorFilter,
+            Action: string.IsNullOrWhiteSpace(actionFilter) ? null : actionFilter,
+            From: dateFrom,
+            To: dateTo);
+        logs = await AuditService.GetLogsAsync(query);
+    }
+
+    private async Task ApplyFilters() { currentPage = 1; await LoadLogs(); }
+    private async Task ClearFilters() { actorFilter = ""; actionFilter = ""; dateFrom = null; dateTo = null; currentPage = 1; await LoadLogs(); }
+    private async Task PreviousPage() { if (currentPage > 1) { currentPage--; await LoadLogs(); } }
+    private async Task NextPage() { if (logs?.HasNextPage == true) { currentPage++; await LoadLogs(); } }
+}

@@ -1,0 +1,43 @@
+@page "/{Slug}/notes/new"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+@inject NavigationManager Navigation
+
+<h1>New Note</h1>
+
+<div class="card" style="max-width: 600px;">
+    <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="note-create">
+        <div class="form-group">
+            <label>Title</label>
+            <InputText @bind-Value="model.Title" />
+        </div>
+        <div class="form-group">
+            <label>Body</label>
+            <InputTextArea @bind-Value="model.Body" rows="10" />
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Create</button>
+            <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    private NoteFormModel model = new();
+
+    private async Task HandleSubmit()
+    {
+        var noteService = GetShellService<INoteService>();
+        if (noteService is not null)
+            await noteService.CreateNoteAsync(new CreateNoteRequest(model.Title, model.Body, "user"));
+        Navigation.NavigateTo($"/{Slug}/notes");
+    }
+
+    private void NavigateBack() => Navigation.NavigateTo($"/{Slug}/notes");
+
+    private class NoteFormModel
+    {
+        public string Title { get; set; } = "";
+        public string Body { get; set; } = "";
+    }
+}

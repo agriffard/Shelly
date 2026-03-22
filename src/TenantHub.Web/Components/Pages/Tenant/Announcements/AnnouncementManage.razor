@@ -1,0 +1,51 @@
+@page "/{Slug}/announcements/manage"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+
+<h1>Manage Announcements</h1>
+
+<div class="card mb-4" style="max-width: 600px;">
+    <h3>Create Announcement</h3>
+    <div class="form-group"><label>Title</label><input type="text" @bind="newTitle" /></div>
+    <div class="form-group"><label>Body</label><textarea rows="4" @bind="newBody" style="width: 100%;"></textarea></div>
+    <div class="form-group"><label>Expires At</label><input type="date" @bind="newExpiresAt" /></div>
+    <div class="form-group"><label><input type="checkbox" @bind="newIsPinned" /> Pinned</label></div>
+    <button class="btn btn-primary" @onclick="Create">Create</button>
+</div>
+
+@if (announcements is not null)
+{
+    <table>
+        <thead><tr><th>Title</th><th>Pinned</th><th>Expires</th><th>Actions</th></tr></thead>
+        <tbody>
+            @foreach (var a in announcements)
+            {
+                <tr>
+                    <td>@a.Title</td>
+                    <td>@(a.IsPinned ? "Yes" : "No")</td>
+                    <td>@a.ExpiresAt.ToString("yyyy-MM-dd")</td>
+                    <td>
+                        <div class="flex gap-2">
+                            <button class="btn btn-secondary" @onclick="() => TogglePin(a)">@(a.IsPinned ? "Unpin" : "Pin")</button>
+                            <button class="btn btn-danger" @onclick="() => Delete(a.Id)">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IAnnouncementService? svc;
+    private IReadOnlyList<AnnouncementDto>? announcements;
+    private string newTitle = "", newBody = "";
+    private DateTime newExpiresAt = DateTime.Today.AddDays(30);
+    private bool newIsPinned;
+
+    protected override async Task OnInitializedAsync() { svc = GetShellService<IAnnouncementService>(); if (svc is not null) await Load(); }
+    private async Task Load() { if (svc is not null) announcements = await svc.GetAnnouncementsAsync(); }
+    private async Task Create() { if (svc is null) return; await svc.CreateAnnouncementAsync(new CreateAnnouncementRequest(newTitle, newBody, newIsPinned, newExpiresAt)); newTitle = ""; newBody = ""; newIsPinned = false; newExpiresAt = DateTime.Today.AddDays(30); await Load(); }
+    private async Task TogglePin(AnnouncementDto a) { if (svc is null) return; await svc.UpdateAnnouncementAsync(a.Id, new UpdateAnnouncementRequest(IsPinned: !a.IsPinned)); await Load(); }
+    private async Task Delete(Guid id) { if (svc is null) return; await svc.DeleteAnnouncementAsync(id); await Load(); }
+}

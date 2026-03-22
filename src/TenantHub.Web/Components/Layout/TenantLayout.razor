@@ -1,0 +1,73 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject TenantHub.Data.AdminDbContext AdminDb
+
+<nav class="tenant-nav">
+    <strong>@slug</strong>
+    @if (enabledFeatures.Contains("Notes"))
+    {
+        <NavLink href="@($"/{slug}/notes")" Match="NavLinkMatch.Prefix">Notes</NavLink>
+    }
+    @if (enabledFeatures.Contains("Tasks"))
+    {
+        <NavLink href="@($"/{slug}/tasks")" Match="NavLinkMatch.Prefix">Tasks</NavLink>
+    }
+    @if (enabledFeatures.Contains("Announcements"))
+    {
+        <NavLink href="@($"/{slug}/announcements")" Match="NavLinkMatch.Prefix">Announcements</NavLink>
+    }
+    @if (enabledFeatures.Contains("Media"))
+    {
+        <NavLink href="@($"/{slug}/files")" Match="NavLinkMatch.Prefix">Files</NavLink>
+    }
+</nav>
+
+@if (enabledFeatures.Contains("Announcements"))
+{
+    <PinnedAnnouncementsBanner Slug="@slug" />
+}
+
+<div class="container mt-4">
+    @Body
+</div>
+
+@code {
+    private string slug = "";
+    private HashSet<string> enabledFeatures = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshFeatures();
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await RefreshFeatures();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshFeatures()
+    {
+        var uri = new Uri(Navigation.Uri);
+        slug = uri.AbsolutePath.TrimStart('/').Split('/').FirstOrDefault() ?? "";
+
+        if (!string.IsNullOrEmpty(slug))
+        {
+            var features = await AdminDb.TenantFeatures
+                .AsNoTracking()
+                .Where(f => f.Tenant.Slug == slug && f.IsEnabled)
+                .Select(f => f.FeatureName)
+                .ToListAsync();
+            enabledFeatures = features.ToHashSet();
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}
+
+@using Microsoft.EntityFrameworkCore

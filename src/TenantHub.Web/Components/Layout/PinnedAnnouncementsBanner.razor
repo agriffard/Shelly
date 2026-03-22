@@ -1,0 +1,37 @@
+@implements IDisposable
+
+@if (pinnedAnnouncements is not null && pinnedAnnouncements.Count > 0)
+{
+    @foreach (var announcement in pinnedAnnouncements)
+    {
+        <div class="alert-banner">
+            <strong>@announcement.Title</strong> — @announcement.Body
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+
+    private IReadOnlyList<AnnouncementDto>? pinnedAnnouncements;
+    private IServiceScope? scope;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(Slug)) return;
+        try
+        {
+            var shellHost = AppServices.RootProvider.GetService(typeof(CShells.Hosting.IShellHost)) as CShells.Hosting.IShellHost;
+            if (shellHost is null) return;
+
+            var shell = shellHost.GetShell(new CShells.ShellId(Slug));
+            scope = shell.ServiceProvider.CreateScope();
+            var service = scope.ServiceProvider.GetService(typeof(IAnnouncementService)) as IAnnouncementService;
+            if (service is not null)
+                pinnedAnnouncements = await service.GetPinnedAsync();
+        }
+        catch { /* Shell not found or feature not enabled */ }
+    }
+
+    public void Dispose() { scope?.Dispose(); }
+}

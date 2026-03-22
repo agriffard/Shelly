@@ -46,12 +46,13 @@ builder.Services.AddScoped<ITenantManagementService, TenantManagementService>();
 builder.Services.AddScoped<IShellReloadService, CShellsReloadService>();
 
 // --- CShells with ASP.NET Core integration ---
+// Pass the Features assembly so CShells discovers all [ShellFeature] classes
 builder.Services.AddCShellsAspNetCore(cshells =>
 {
     // Add a Default shell (required by CShells) with no tenant features
     cshells.AddShell("Default", shell => shell.WithFeatures("Core"));
     cshells.WithProvider<DatabaseShellSettingsProvider>();
-});
+}, [typeof(CoreFeature).Assembly]);
 
 // --- Blazor ---
 builder.Services.AddRazorComponents()
@@ -152,6 +153,32 @@ app.MapPost("/api/account/logout", async (HttpContext context) =>
     finally
     {
         context.RequestServices = originalServices;
+    }
+});
+
+// Debug endpoint: check what IShellHost sees for a tenant
+app.MapGet("/api/debug/shell/{slug}", (string slug) =>
+{
+    var shellHost = app.Services.GetRequiredService<CShells.Hosting.IShellHost>();
+    try
+    {
+        var shell = shellHost.GetShell(new CShells.ShellId(slug));
+        using var scope = shell.ServiceProvider.CreateScope();
+        var hasNoteService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.INoteService)) is not null;
+        var hasTaskService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.ITaskService)) is not null;
+        var hasTenantService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.ICurrentTenantService)) is not null;
+        return Results.Ok(new
+        {
+            id = shell.Id.Name,
+            settingsFeatures = shell.Settings.EnabledFeatures,
+            activatedFeatures = shell.EnabledFeatures,
+            allShellIds = shellHost.AllShells.Select(s => s.Id.Name).ToList(),
+            services = new { hasNoteService, hasTaskService, hasTenantService }
+        });
+    }
+    catch (KeyNotFoundException)
+    {
+        return Results.NotFound(new { error = $"Shell '{slug}' not found", allShellIds = shellHost.AllShells.Select(s => s.Id.Name).ToList() });
     }
 });
 

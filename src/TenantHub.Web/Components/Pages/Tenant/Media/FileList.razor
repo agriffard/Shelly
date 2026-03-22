@@ -2,6 +2,9 @@
 @layout TenantHub.Web.Components.Layout.TenantLayout
 @inherits TenantHub.Web.Components.TenantComponentBase
 
+@if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
+else
+{
 <h1>File Vault</h1>
 
 <div class="card mb-4">
@@ -32,14 +35,16 @@ else
         </tbody>
     </table>
 }
+}
 
 @code {
+    protected override string? RequiredFeature => "Media";
     private IMediaService? mediaService;
     private IReadOnlyList<FileRecordDto>? files;
     private bool isUploading;
     private string? uploadError;
 
-    protected override async Task OnInitializedAsync() { mediaService = GetShellService<IMediaService>(); if (mediaService is not null) await LoadFiles(); }
+    protected override async Task OnInitializedAsync() { if (!IsFeatureEnabled) return; mediaService = GetShellService<IMediaService>(); if (mediaService is not null) await LoadFiles(); }
     private async Task LoadFiles() { if (mediaService is null) return; files = await mediaService.GetFilesAsync(); }
 
     private async Task HandleFileUpload(InputFileChangeEventArgs e)

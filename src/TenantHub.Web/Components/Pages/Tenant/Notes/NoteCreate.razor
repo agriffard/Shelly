@@ -3,26 +3,31 @@
 @inherits TenantHub.Web.Components.TenantComponentBase
 @inject NavigationManager Navigation
 
-<h1>New Note</h1>
+@if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
+else
+{
+    <h1>New Note</h1>
 
-<div class="card" style="max-width: 600px;">
-    <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="note-create">
-        <div class="form-group">
-            <label>Title</label>
-            <InputText @bind-Value="model.Title" />
-        </div>
-        <div class="form-group">
-            <label>Body</label>
-            <InputTextArea @bind-Value="model.Body" rows="10" />
-        </div>
-        <div class="flex gap-2">
-            <button type="submit" class="btn btn-primary">Create</button>
-            <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
-        </div>
-    </EditForm>
-</div>
+    <div class="card" style="max-width: 600px;">
+        <EditForm Model="model" OnValidSubmit="HandleSubmit" FormName="note-create">
+            <div class="form-group">
+                <label>Title</label>
+                <InputText @bind-Value="model.Title" />
+            </div>
+            <div class="form-group">
+                <label>Body</label>
+                <InputTextArea @bind-Value="model.Body" rows="10" />
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-primary">Create</button>
+                <button type="button" class="btn btn-secondary" @onclick="NavigateBack">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+}
 
 @code {
+    protected override string? RequiredFeature => "Notes";
     private NoteFormModel model = new();
 
     private async Task HandleSubmit()

@@ -3,6 +3,9 @@
 @inherits TenantHub.Web.Components.TenantComponentBase
 @inject NavigationManager Navigation
 
+@if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
+else
+{
 <div class="flex justify-between items-center mb-4">
     <h1>Tasks</h1>
     <button class="btn btn-primary" @onclick="() => showCreate = true">New Task</button>
@@ -49,8 +52,10 @@ else
         }
     </div>
 }
+}
 
 @code {
+    protected override string? RequiredFeature => "Tasks";
     private ITaskService? taskService;
     private IReadOnlyList<TaskItemDto>? tasks;
     private bool showCreate;
@@ -58,7 +63,7 @@ else
     private DateTime newDueDate = DateTime.Today.AddDays(7);
     private static readonly (TaskItemStatus Status, string Label)[] columns = [(TaskItemStatus.ToDo, "To Do"), (TaskItemStatus.InProgress, "In Progress"), (TaskItemStatus.Done, "Done")];
 
-    protected override async Task OnInitializedAsync() { taskService = GetShellService<ITaskService>(); if (taskService is not null) await LoadTasks(); }
+    protected override async Task OnInitializedAsync() { if (!IsFeatureEnabled) return; taskService = GetShellService<ITaskService>(); if (taskService is not null) await LoadTasks(); }
     private async Task LoadTasks() { if (taskService is null) return; tasks = await taskService.GetTasksAsync(string.IsNullOrWhiteSpace(assigneeFilter) ? null : assigneeFilter); }
     private async Task CreateTask() { if (taskService is null) return; await taskService.CreateTaskAsync(new CreateTaskRequest(newTitle, newAssignee, newDueDate)); newTitle = ""; newAssignee = ""; newDueDate = DateTime.Today.AddDays(7); showCreate = false; await LoadTasks(); }
     private async Task ApplyFilter() => await LoadTasks();

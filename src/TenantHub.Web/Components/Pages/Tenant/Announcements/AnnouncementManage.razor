@@ -2,6 +2,9 @@
 @layout TenantHub.Web.Components.Layout.TenantLayout
 @inherits TenantHub.Web.Components.TenantComponentBase
 
+@if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
+else
+{
 <h1>Manage Announcements</h1>
 
 <div class="card mb-4" style="max-width: 600px;">
@@ -35,15 +38,17 @@
         </tbody>
     </table>
 }
+}
 
 @code {
+    protected override string? RequiredFeature => "Announcements";
     private IAnnouncementService? svc;
     private IReadOnlyList<AnnouncementDto>? announcements;
     private string newTitle = "", newBody = "";
     private DateTime newExpiresAt = DateTime.Today.AddDays(30);
     private bool newIsPinned;
 
-    protected override async Task OnInitializedAsync() { svc = GetShellService<IAnnouncementService>(); if (svc is not null) await Load(); }
+    protected override async Task OnInitializedAsync() { if (!IsFeatureEnabled) return; svc = GetShellService<IAnnouncementService>(); if (svc is not null) await Load(); }
     private async Task Load() { if (svc is not null) announcements = await svc.GetAnnouncementsAsync(); }
     private async Task Create() { if (svc is null) return; await svc.CreateAnnouncementAsync(new CreateAnnouncementRequest(newTitle, newBody, newIsPinned, newExpiresAt)); newTitle = ""; newBody = ""; newIsPinned = false; newExpiresAt = DateTime.Today.AddDays(30); await Load(); }
     private async Task TogglePin(AnnouncementDto a) { if (svc is null) return; await svc.UpdateAnnouncementAsync(a.Id, new UpdateAnnouncementRequest(IsPinned: !a.IsPinned)); await Load(); }

@@ -40,8 +40,14 @@ public class CoreFeature(ShellSettings shellSettings) : IWebShellFeature
                 // tracks its own migration state independently
                 sql.MigrationsHistoryTable("__EFMigrationsHistory", schema);
             });
-            // Schema differs at runtime (tenant slug) vs migration time ("tenant_template")
-            options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+            options.ConfigureWarnings(w =>
+            {
+                // Schema differs at runtime vs migration time
+                w.Ignore(RelationalEventId.PendingModelChangesWarning);
+                // Suppress "Failed executing DbCommand" logs for CREATE TABLE/INDEX
+                // that fail because objects already exist — these are expected and caught
+                //w.Ignore(RelationalEventId.CommandError);
+            });
         });
 
         services.AddSingleton<IShellActivatedHandler, TenantDbMigrationHandler>();

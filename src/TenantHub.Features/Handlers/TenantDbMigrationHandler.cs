@@ -17,37 +17,47 @@ public class TenantDbMigrationHandler(IServiceProvider serviceProvider, ILogger<
 
         var tenantService = scope.ServiceProvider.GetRequiredService<ICurrentTenantService>();
         if (tenantService.TenantSlug == "Default")
-        {
-            logger.LogInformation("Skipping table creation for Default shell");
             return;
-        }
 
         var dbContext = scope.ServiceProvider.GetRequiredService<TenantDbContext>();
         var schema = tenantService.TenantSchema;
-        logger.LogInformation("Creating tables for tenant schema '{Schema}'", schema);
 
-        // Ensure schema exists
-        if (!string.IsNullOrEmpty(schema))
+        // Check if tables already exist for this tenant schema
+        var tableCount = await dbContext.Database.SqlQueryRaw<int>(
+            $"SELECT COUNT(*) AS [Value] FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}'"
+        ).FirstOrDefaultAsync(cancellationToken);
+
+        if (tableCount > 0)
         {
-            var sql = $"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'{schema}') EXEC('CREATE SCHEMA [{schema}]')";
+            logger.LogDebug("Tenant schema '{Schema}' already has {Count} table(s), skipping creation", schema, tableCount);
+            return;
+        }
+
+        logger.LogInformation("Creating tables for new tenant schema '{Schema}'", schema);
+
+        // Create schema
 #pragma warning disable EF1002
-            await dbContext.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+        await dbContext.Database.ExecuteSqlRawAsync(
+            $"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = N'{schema}') EXEC('CREATE SCHEMA [{schema}]')",
+            cancellationToken);
+#pragma warning restore EF1002
+
+        // Create tables from the runtime model
+        var creator = dbContext.GetService<IRelationalDatabaseCreator>();
+        var createScript = creator.GenerateCreateScript();
+
+        var statements = createScript
+            .Split(["GO"], StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => s.Trim())
+            .Where(s => !string.IsNullOrEmpty(s));
+
+        foreach (var statement in statements)
+        {
+#pragma warning disable EF1002
+            await dbContext.Database.ExecuteSqlRawAsync(statement, cancellationToken);
 #pragma warning restore EF1002
         }
 
-        // Use the RelationalDatabaseCreator to create tables from the runtime model.
-        // EnsureCreatedAsync skips if the DB exists, but CreateTablesAsync always creates
-        // the tables defined in the model (in the tenant's schema).
-        var creator = dbContext.GetService<IRelationalDatabaseCreator>();
-        try
-        {
-            await creator.CreateTablesAsync(cancellationToken);
-            logger.LogInformation("Tables created for tenant schema '{Schema}'", schema);
-        }
-        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 2714)
-        {
-            // "There is already an object named '...' in the database" — tables already exist
-            logger.LogInformation("Tables already exist for tenant schema '{Schema}'", schema);
-        }
+        logger.LogInformation("Tables created for tenant schema '{Schema}'", schema);
     }
 }

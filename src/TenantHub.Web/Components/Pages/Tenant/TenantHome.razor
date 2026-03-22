@@ -1,0 +1,43 @@
+@page "/{Slug}"
+@layout TenantHub.Web.Components.Layout.TenantLayout
+@inherits TenantHub.Web.Components.TenantComponentBase
+
+@if (!TenantExists)
+{
+    <TenantNotFound />
+}
+else
+{
+    <h1>Welcome to @Slug</h1>
+    <p style="color: #6b7280;">Select a feature from the navigation above.</p>
+
+    @if (enabledFeatureNames.Count > 0)
+    {
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+            @foreach (var (name, path, description) in enabledFeatureNames)
+            {
+                <a href="@($"/{Slug}/{path}")" class="card" style="text-decoration: none; color: inherit;">
+                    <h3 style="margin: 0;">@name</h3>
+                    <p style="color: #6b7280; font-size: 0.875rem; margin: 0.25rem 0 0;">@description</p>
+                </a>
+            }
+        </div>
+    }
+}
+
+@code {
+    private List<(string Name, string Path, string Description)> enabledFeatureNames = [];
+
+    protected override Task LoadDataAsync()
+    {
+        if (HasFeature("Notes"))
+            enabledFeatureNames.Add(("Notes", "notes", "Rich-text note taking"));
+        if (HasFeature("Tasks"))
+            enabledFeatureNames.Add(("Tasks", "tasks", "Lightweight task tracker"));
+        if (HasFeature("Announcements"))
+            enabledFeatureNames.Add(("Announcements", "announcements", "Broadcast messages"));
+        if (HasFeature("Media"))
+            enabledFeatureNames.Add(("Files", "files", "Upload and share files"));
+        return Task.CompletedTask;
+    }
+}

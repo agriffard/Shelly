@@ -55,12 +55,5 @@ public class CoreFeature(ShellSettings shellSettings) : IWebShellFeature
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints, IHostEnvironment? environment)
     {
-        // Only map tenant endpoints for real tenant shells, not the Default shell
-        if (shellSettings.Id.Name == "Default")
-            return;
-
-        // Tenant home
-        endpoints.MapGet("", (ICurrentTenantService tenant) =>
-            Results.Ok(new { tenant = tenant.TenantSlug, status = "active", features = shellSettings.EnabledFeatures }));
     }
 }

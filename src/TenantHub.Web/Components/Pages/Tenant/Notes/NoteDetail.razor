@@ -3,7 +3,8 @@
 @inherits TenantHub.Web.Components.TenantComponentBase
 @inject NavigationManager Navigation
 
-@if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
+@if (!TenantExists) { <TenantNotFound /> }
+else if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
 else if (note is null)
 {
     <p>Loading...</p>
@@ -60,9 +61,8 @@ else
 
     protected override string? RequiredFeature => "Notes";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task LoadDataAsync()
     {
-        if (!IsFeatureEnabled) return;
         noteService = GetShellService<INoteService>();
         if (noteService is not null) note = await noteService.GetNoteByIdAsync(Id);
     }

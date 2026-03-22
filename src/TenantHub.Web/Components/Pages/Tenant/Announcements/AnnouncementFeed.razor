@@ -2,7 +2,8 @@
 @layout TenantHub.Web.Components.Layout.TenantLayout
 @inherits TenantHub.Web.Components.TenantComponentBase
 
-@if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
+@if (!TenantExists) { <TenantNotFound /> }
+else if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
 else
 {
 <h1>Announcements</h1>
@@ -29,9 +30,8 @@ else
     protected override string? RequiredFeature => "Announcements";
     private IReadOnlyList<AnnouncementDto>? announcements;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task LoadDataAsync()
     {
-        if (!IsFeatureEnabled) return;
         var service = GetShellService<IAnnouncementService>();
         if (service is not null) announcements = await service.GetAnnouncementsAsync();
     }

@@ -3,7 +3,8 @@
 @inherits TenantHub.Web.Components.TenantComponentBase
 @inject NavigationManager Navigation
 
-@if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
+@if (!TenantExists) { <TenantNotFound /> }
+else if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
 else
 {
     <h1>New Note</h1>

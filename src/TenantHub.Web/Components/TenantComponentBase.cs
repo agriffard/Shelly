@@ -6,51 +6,60 @@ using TenantHub.Data;
 
 namespace TenantHub.Web.Components;
 
-/// <summary>
-/// Holds a reference to the root IServiceProvider so Blazor components
-/// can access IShellHost regardless of which DI scope they're in.
-/// </summary>
 public static class AppServices
 {
     public static IServiceProvider RootProvider { get; set; } = default!;
 }
 
-/// <summary>
-/// Base class for tenant Blazor components that resolves services from the correct
-/// CShells shell DI container based on the Slug route parameter.
-/// </summary>
 public abstract class TenantComponentBase : ComponentBase, IDisposable
 {
     [Parameter] public string Slug { get; set; } = "";
 
-    /// <summary>
-    /// Override to specify which feature this page requires.
-    /// </summary>
     protected virtual string? RequiredFeature => null;
 
-    protected bool IsFeatureEnabled { get; private set; } = true;
+    protected bool TenantExists { get; private set; }
+    protected bool IsFeatureEnabled { get; private set; }
 
     private IServiceScope? _shellScope;
     private HashSet<string>? _enabledFeatures;
 
     protected override async Task OnParametersSetAsync()
     {
-        // Always read features from DB — the source of truth
         if (!string.IsNullOrEmpty(Slug))
         {
             using var scope = AppServices.RootProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
-            var features = await db.TenantFeatures
+
+            var tenant = await db.Tenants
                 .AsNoTracking()
-                .Where(f => f.Tenant.Slug == Slug && f.IsEnabled)
-                .Select(f => f.FeatureName)
-                .ToListAsync();
-            _enabledFeatures = features.ToHashSet();
+                .Where(t => t.Slug == Slug && t.Status != Core.DTOs.TenantStatus.Deleted)
+                .Select(t => new { t.Id })
+                .FirstOrDefaultAsync();
+
+            TenantExists = tenant is not null;
+
+            if (TenantExists)
+            {
+                var features = await db.TenantFeatures
+                    .AsNoTracking()
+                    .Where(f => f.Tenant.Slug == Slug && f.IsEnabled)
+                    .Select(f => f.FeatureName)
+                    .ToListAsync();
+                _enabledFeatures = features.ToHashSet();
+            }
         }
 
-        IsFeatureEnabled = RequiredFeature is null
-            || (_enabledFeatures?.Contains(RequiredFeature) ?? false);
+        IsFeatureEnabled = TenantExists
+            && (RequiredFeature is null || (_enabledFeatures?.Contains(RequiredFeature) ?? false));
+
+        if (IsFeatureEnabled)
+            await LoadDataAsync();
     }
+
+    /// <summary>
+    /// Override in pages to load data. Called after tenant and feature checks pass.
+    /// </summary>
+    protected virtual Task LoadDataAsync() => Task.CompletedTask;
 
     private ShellContext? GetShellContext()
     {

@@ -3,10 +3,8 @@
 @inherits TenantHub.Web.Components.TenantComponentBase
 @inject NavigationManager Navigation
 
-@if (!IsFeatureEnabled)
-{
-    <FeatureNotAvailable />
-}
+@if (!TenantExists) { <TenantNotFound /> }
+else if (!IsFeatureEnabled) { <FeatureNotAvailable /> }
 else
 {
     <div class="flex justify-between items-center mb-4">
@@ -52,9 +50,8 @@ else
     private IReadOnlyList<NoteDto>? notes;
     private string searchTerm = "";
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task LoadDataAsync()
     {
-        if (!IsFeatureEnabled) return;
         noteService = GetShellService<INoteService>();
         if (noteService is not null) await LoadNotes();
     }

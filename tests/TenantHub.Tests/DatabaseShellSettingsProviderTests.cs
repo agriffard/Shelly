@@ -1,3 +1,4 @@
+using CShells.Lifecycle;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TenantHub.Core.DTOs;
@@ -18,9 +19,9 @@ public class DatabaseShellSettingsProviderTests
     }
 
     [Fact]
-    public async Task GetShellSettingsAsync_ReturnsOnlyActiveTenants()
+    public async Task ListAsync_ReturnsActiveTenantsAndDefaultShell()
     {
-        var sp = CreateServiceProvider(nameof(GetShellSettingsAsync_ReturnsOnlyActiveTenants));
+        var sp = CreateServiceProvider(nameof(ListAsync_ReturnsActiveTenantsAndDefaultShell));
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
 
@@ -32,39 +33,44 @@ public class DatabaseShellSettingsProviderTests
         await db.SaveChangesAsync();
 
         var provider = new DatabaseShellSettingsProvider(sp);
-        var settings = (await provider.GetShellSettingsAsync()).ToList();
+        var page = await provider.ListAsync(new BlueprintListQuery(null, 100, null));
 
-        Assert.Single(settings);
-        Assert.Equal("active", settings[0].Id.Name);
+        Assert.Equal(2, page.Items.Count);
+        Assert.Contains(page.Items, x => x.Name == "active");
+        Assert.Contains(page.Items, x => x.Name == "Default");
     }
 
     [Fact]
-    public async Task GetShellSettingsAsync_AlwaysIncludesCoreFeature()
+    public async Task GetAsync_AlwaysIncludesCoreFeature()
     {
-        var sp = CreateServiceProvider(nameof(GetShellSettingsAsync_AlwaysIncludesCoreFeature));
+        var sp = CreateServiceProvider(nameof(GetAsync_AlwaysIncludesCoreFeature));
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
 
         var tenantId = Guid.NewGuid();
         db.Tenants.Add(new Tenant
         {
-            Id = tenantId, Name = "Test", Slug = "test", Status = TenantStatus.Active, CreatedAt = DateTime.UtcNow,
+            Id = tenantId,
+            Name = "Test",
+            Slug = "test",
+            Status = TenantStatus.Active,
+            CreatedAt = DateTime.UtcNow,
             Features = [new TenantFeature { Id = Guid.NewGuid(), FeatureName = "Notes", IsEnabled = true, UpdatedAt = DateTime.UtcNow }]
         });
         await db.SaveChangesAsync();
 
         var provider = new DatabaseShellSettingsProvider(sp);
-        var settings = (await provider.GetShellSettingsAsync()).ToList();
+        var provided = await provider.GetAsync("test");
+        var settings = await provided.Blueprint.ComposeAsync();
 
-        Assert.Single(settings);
-        Assert.Contains("Core", settings[0].EnabledFeatures);
-        Assert.Contains("Notes", settings[0].EnabledFeatures);
+        Assert.Contains("Core", settings.EnabledFeatures);
+        Assert.Contains("Notes", settings.EnabledFeatures);
     }
 
     [Fact]
-    public async Task GetShellSettingsAsync_ByShellId_ReturnsNullForSuspended()
+    public async Task GetAsync_ThrowsForSuspended()
     {
-        var sp = CreateServiceProvider(nameof(GetShellSettingsAsync_ByShellId_ReturnsNullForSuspended));
+        var sp = CreateServiceProvider(nameof(GetAsync_ThrowsForSuspended));
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
 
@@ -72,15 +78,14 @@ public class DatabaseShellSettingsProviderTests
         await db.SaveChangesAsync();
 
         var provider = new DatabaseShellSettingsProvider(sp);
-        var result = await provider.GetShellSettingsAsync(new CShells.ShellId("suspended"));
 
-        Assert.Null(result);
+        await Assert.ThrowsAsync<ShellBlueprintNotFoundException>(() => provider.GetAsync("suspended"));
     }
 
     [Fact]
-    public async Task GetShellSettingsAsync_SetsCorrectConfigurationData()
+    public async Task GetAsync_SetsCorrectConfigurationData()
     {
-        var sp = CreateServiceProvider(nameof(GetShellSettingsAsync_SetsCorrectConfigurationData));
+        var sp = CreateServiceProvider(nameof(GetAsync_SetsCorrectConfigurationData));
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
 
@@ -88,9 +93,24 @@ public class DatabaseShellSettingsProviderTests
         await db.SaveChangesAsync();
 
         var provider = new DatabaseShellSettingsProvider(sp);
-        var settings = (await provider.GetShellSettingsAsync()).First();
+        var provided = await provider.GetAsync("acme");
+        var settings = await provided.Blueprint.ComposeAsync();
 
         Assert.Equal("acme", settings.ConfigurationData["WebRouting:Path"]);
         Assert.Equal("acme", settings.ConfigurationData["TenantSchema"]);
+    }
+
+    [Fact]
+    public async Task GetAsync_DefaultShell_ReturnsCoreOnly()
+    {
+        var sp = CreateServiceProvider(nameof(GetAsync_DefaultShell_ReturnsCoreOnly));
+        var provider = new DatabaseShellSettingsProvider(sp);
+
+        var provided = await provider.GetAsync("Default");
+        var settings = await provided.Blueprint.ComposeAsync();
+
+        Assert.Equal("Default", settings.Id.Name);
+        Assert.Single(settings.EnabledFeatures);
+        Assert.Equal("Core", settings.EnabledFeatures[0]);
     }
 }

@@ -1,5 +1,6 @@
 using CShells.AspNetCore.Extensions;
 using CShells.DependencyInjection;
+using CShells.Lifecycle;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TenantHub.Core.Services;
@@ -49,10 +50,9 @@ builder.Services.AddScoped<IShellReloadService, CShellsReloadService>();
 // Pass the Features assembly so CShells discovers all [ShellFeature] classes
 builder.Services.AddCShellsAspNetCore(cshells =>
 {
-    // Add a Default shell (required by CShells) with no tenant features
-    cshells.AddShell("Default", shell => shell.WithFeatures("Core"));
-    cshells.WithProvider<DatabaseShellSettingsProvider>();
-}, [typeof(CoreFeature).Assembly]);
+    cshells.AddBlueprintProvider(sp => new DatabaseShellSettingsProvider(sp));
+    cshells.WithAssemblies(typeof(CoreFeature).Assembly);
+});
 
 // --- Blazor ---
 builder.Services.AddRazorComponents()
@@ -156,30 +156,33 @@ app.MapPost("/api/account/logout", async (HttpContext context) =>
     }
 });
 
-// Debug endpoint: check what IShellHost sees for a tenant
-app.MapGet("/api/debug/shell/{slug}", (string slug) =>
+// Debug endpoint: check what shell registry sees for a tenant
+app.MapGet("/api/debug/shell/{slug}", async (string slug) =>
 {
-    var shellHost = app.Services.GetRequiredService<CShells.Hosting.IShellHost>();
-    try
+    var shellRegistry = app.Services.GetRequiredService<IShellRegistry>();
+
+    var page = await shellRegistry.ListAsync(new ShellListQuery(null, 200, null, null));
+    var allShellIds = page.Items.Select(i => i.Name).ToList();
+
+    var shell = shellRegistry.GetActive(slug);
+    if (shell is null)
+        return Results.NotFound(new { error = $"Shell '{slug}' not active", allShellIds });
+
+    var providedBlueprint = await shellRegistry.GetBlueprintAsync(slug);
+    var settings = await providedBlueprint.Blueprint.ComposeAsync();
+
+    await using var scope = shell.BeginScope();
+    var hasNoteService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.INoteService)) is not null;
+    var hasTaskService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.ITaskService)) is not null;
+    var hasTenantService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.ICurrentTenantService)) is not null;
+
+    return Results.Ok(new
     {
-        var shell = shellHost.GetShell(new CShells.ShellId(slug));
-        using var scope = shell.ServiceProvider.CreateScope();
-        var hasNoteService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.INoteService)) is not null;
-        var hasTaskService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.ITaskService)) is not null;
-        var hasTenantService = scope.ServiceProvider.GetService(typeof(TenantHub.Core.Services.ICurrentTenantService)) is not null;
-        return Results.Ok(new
-        {
-            id = shell.Id.Name,
-            settingsFeatures = shell.Settings.EnabledFeatures,
-            activatedFeatures = shell.EnabledFeatures,
-            allShellIds = shellHost.AllShells.Select(s => s.Id.Name).ToList(),
-            services = new { hasNoteService, hasTaskService, hasTenantService }
-        });
-    }
-    catch (KeyNotFoundException)
-    {
-        return Results.NotFound(new { error = $"Shell '{slug}' not found", allShellIds = shellHost.AllShells.Select(s => s.Id.Name).ToList() });
-    }
+        id = shell.Descriptor.Name,
+        settingsFeatures = settings.EnabledFeatures,
+        allShellIds,
+        services = new { hasNoteService, hasTaskService, hasTenantService }
+    });
 });
 
 app.MapRazorComponents<TenantHub.Web.Components.App>()

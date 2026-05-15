@@ -1,60 +1,33 @@
-using CShells;
-using CShells.Hosting;
-using CShells.Management;
+using CShells.Lifecycle;
 using Microsoft.Extensions.Caching.Memory;
 using TenantHub.Core.Services;
-using TenantHub.Web.Components;
 using TenantHub.Web.Middleware;
 
 namespace TenantHub.Web.Services;
 
-public class CShellsReloadService(IShellManager shellManager, IMemoryCache cache) : IShellReloadService
+public class CShellsReloadService(IShellRegistry shellRegistry, IMemoryCache cache) : IShellReloadService
 {
-    private static IShellHost GetShellHost() =>
-        (AppServices.RootProvider.GetService(typeof(IShellHost)) as IShellHost)!;
-
     public async Task AddShellAsync(string slug, IReadOnlyList<string> features, CancellationToken ct = default)
     {
-        var settings = BuildSettings(slug, features);
-        await GetShellHost().EvictShellAsync(new ShellId(slug));
-        await shellManager.AddShellAsync(settings, ct);
+        await shellRegistry.ActivateAsync(slug, ct);
         SuspendedTenantMiddleware.InvalidateCache(cache, slug);
     }
 
     public async Task UpdateShellAsync(string slug, IReadOnlyList<string> features, CancellationToken ct = default)
     {
-        // Use ReloadShellAsync which re-fetches from DatabaseShellSettingsProvider.
-        // The DB has already been updated before this call.
-        await GetShellHost().EvictShellAsync(new ShellId(slug));
-        try
-        {
-            await shellManager.ReloadShellAsync(new ShellId(slug), ct);
-        }
-        catch (InvalidOperationException)
-        {
-            // Shell not found by provider — fall back to add
-            var settings = BuildSettings(slug, features);
-            await shellManager.AddShellAsync(settings, ct);
-        }
+        if (shellRegistry.GetActive(slug) is null)
+            await shellRegistry.ActivateAsync(slug, ct);
+        else
+            await shellRegistry.ReloadAsync(slug, ct);
+
         SuspendedTenantMiddleware.InvalidateCache(cache, slug);
     }
 
     public async Task RemoveShellAsync(string slug, CancellationToken ct = default)
     {
-        await GetShellHost().EvictShellAsync(new ShellId(slug));
-        await shellManager.RemoveShellAsync(new ShellId(slug), ct);
-        SuspendedTenantMiddleware.InvalidateCache(cache, slug);
-    }
+        if (await shellRegistry.GetBlueprintAsync(slug, ct) is not null)
+            await shellRegistry.UnregisterBlueprintAsync(slug, ct);
 
-    private static ShellSettings BuildSettings(string slug, IReadOnlyList<string> features)
-    {
-        return new ShellSettings(new ShellId(slug), features)
-        {
-            ConfigurationData = new Dictionary<string, object>
-            {
-                ["WebRouting:Path"] = slug,
-                ["TenantSchema"] = slug
-            }
-        };
+        SuspendedTenantMiddleware.InvalidateCache(cache, slug);
     }
 }

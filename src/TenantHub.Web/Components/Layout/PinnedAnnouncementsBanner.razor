@@ -1,4 +1,4 @@
-@implements IDisposable
+@implements IAsyncDisposable
 
 @if (pinnedAnnouncements is not null && pinnedAnnouncements.Count > 0)
 {
@@ -14,24 +14,36 @@
     [Parameter] public string Slug { get; set; } = "";
 
     private IReadOnlyList<AnnouncementDto>? pinnedAnnouncements;
-    private IServiceScope? scope;
+    private CShells.Lifecycle.IShellScope? shellScope;
 
     protected override async Task OnInitializedAsync()
     {
         if (string.IsNullOrEmpty(Slug)) return;
+
         try
         {
-            var shellHost = AppServices.RootProvider.GetService(typeof(CShells.Hosting.IShellHost)) as CShells.Hosting.IShellHost;
-            if (shellHost is null) return;
+            var shellRegistry = AppServices.RootProvider.GetService(typeof(CShells.Lifecycle.IShellRegistry)) as CShells.Lifecycle.IShellRegistry;
+            if (shellRegistry is null) return;
 
-            var shell = shellHost.GetShell(new CShells.ShellId(Slug));
-            scope = shell.ServiceProvider.CreateScope();
-            var service = scope.ServiceProvider.GetService(typeof(IAnnouncementService)) as IAnnouncementService;
+            var shell = await shellRegistry.GetOrActivateAsync(Slug);
+            shellScope = shell.BeginScope();
+
+            var service = shellScope.ServiceProvider.GetService(typeof(IAnnouncementService)) as IAnnouncementService;
             if (service is not null)
                 pinnedAnnouncements = await service.GetPinnedAsync();
         }
-        catch { /* Shell not found or feature not enabled */ }
+        catch
+        {
+            // Shell not found or feature not enabled
+        }
     }
 
-    public void Dispose() { scope?.Dispose(); }
+    public async ValueTask DisposeAsync()
+    {
+        if (shellScope is not null)
+        {
+            await shellScope.DisposeAsync();
+            shellScope = null;
+        }
+    }
 }

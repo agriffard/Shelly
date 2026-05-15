@@ -1,4 +1,4 @@
-using CShells.Hosting;
+using CShells.Lifecycle;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -9,9 +9,9 @@ using TenantHub.Data;
 
 namespace TenantHub.Features.Handlers;
 
-public class TenantDbMigrationHandler(IServiceProvider serviceProvider, ILogger<TenantDbMigrationHandler> logger) : IShellActivatedHandler
+public class TenantDbMigrationHandler(IServiceProvider serviceProvider, ILogger<TenantDbMigrationHandler> logger) : IShellInitializer
 {
-    public async Task OnActivatedAsync(CancellationToken cancellationToken = default)
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         using var scope = serviceProvider.CreateScope();
 

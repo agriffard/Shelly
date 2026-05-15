@@ -1,5 +1,4 @@
-using CShells;
-using CShells.Hosting;
+using CShells.Lifecycle;
 using Microsoft.AspNetCore.Components;
 using Microsoft.EntityFrameworkCore;
 using TenantHub.Data;
@@ -11,7 +10,7 @@ public static class AppServices
     public static IServiceProvider RootProvider { get; set; } = default!;
 }
 
-public abstract class TenantComponentBase : ComponentBase, IDisposable
+public abstract class TenantComponentBase : ComponentBase, IAsyncDisposable
 {
     [Parameter] public string Slug { get; set; } = "";
 
@@ -20,11 +19,17 @@ public abstract class TenantComponentBase : ComponentBase, IDisposable
     protected bool TenantExists { get; private set; }
     protected bool IsFeatureEnabled { get; private set; }
 
-    private IServiceScope? _shellScope;
+    private IShellScope? _shellScope;
     private HashSet<string>? _enabledFeatures;
 
     protected override async Task OnParametersSetAsync()
     {
+        if (_shellScope is not null)
+        {
+            await _shellScope.DisposeAsync();
+            _shellScope = null;
+        }
+
         if (!string.IsNullOrEmpty(Slug))
         {
             using var scope = AppServices.RootProvider.CreateScope();
@@ -53,7 +58,10 @@ public abstract class TenantComponentBase : ComponentBase, IDisposable
             && (RequiredFeature is null || (_enabledFeatures?.Contains(RequiredFeature) ?? false));
 
         if (IsFeatureEnabled)
+        {
+            await EnsureShellScopeAsync();
             await LoadDataAsync();
+        }
     }
 
     /// <summary>
@@ -61,34 +69,17 @@ public abstract class TenantComponentBase : ComponentBase, IDisposable
     /// </summary>
     protected virtual Task LoadDataAsync() => Task.CompletedTask;
 
-    private ShellContext? GetShellContext()
+    private async Task EnsureShellScopeAsync()
     {
-        if (string.IsNullOrEmpty(Slug)) return null;
-        try
-        {
-            var shellHost = AppServices.RootProvider.GetService(typeof(IShellHost)) as IShellHost;
-            return shellHost?.GetShell(new ShellId(Slug));
-        }
-        catch (KeyNotFoundException)
-        {
-            return null;
-        }
+        if (_shellScope is not null || string.IsNullOrEmpty(Slug))
+            return;
+
+        var shellRegistry = AppServices.RootProvider.GetRequiredService<IShellRegistry>();
+        var shell = await shellRegistry.GetOrActivateAsync(Slug);
+        _shellScope = shell.BeginScope();
     }
 
-    protected IServiceProvider? ShellServices
-    {
-        get
-        {
-            if (_shellScope is not null)
-                return _shellScope.ServiceProvider;
-
-            var shell = GetShellContext();
-            if (shell is null) return null;
-
-            _shellScope = shell.ServiceProvider.CreateScope();
-            return _shellScope.ServiceProvider;
-        }
-    }
+    protected IServiceProvider? ShellServices => _shellScope?.ServiceProvider;
 
     protected bool HasFeature(string featureName) =>
         _enabledFeatures?.Contains(featureName) ?? false;
@@ -96,9 +87,12 @@ public abstract class TenantComponentBase : ComponentBase, IDisposable
     protected T? GetShellService<T>() where T : class =>
         ShellServices?.GetService(typeof(T)) as T;
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _shellScope?.Dispose();
-        _shellScope = null;
+        if (_shellScope is not null)
+        {
+            await _shellScope.DisposeAsync();
+            _shellScope = null;
+        }
     }
 }

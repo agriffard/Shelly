@@ -1,7 +1,7 @@
 using CShells;
 using CShells.AspNetCore.Features;
 using CShells.Features;
-using CShells.Hosting;
+using CShells.Lifecycle;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -50,7 +50,7 @@ public class CoreFeature(ShellSettings shellSettings) : IWebShellFeature
             });
         });
 
-        services.AddSingleton<IShellActivatedHandler, TenantDbMigrationHandler>();
+        services.AddShellInitializer<TenantDbMigrationHandler>(LifecyclePhase.Start, order: 100);
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints, IHostEnvironment? environment)
